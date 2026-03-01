@@ -32,6 +32,10 @@ openclaw browser start
 # Agent's browser tool works automatically
 ```
 
+> **Note:** macOS setup does NOT include VNC/noVNC. The user is expected to access
+> the Mac via their own remote desktop solution (e.g. macOS Screen Sharing, Tailscale,
+> or physical access). VNC takeover with noVNC links is only available on Linux.
+
 ### Linux / Docker
 
 ```bash
@@ -141,25 +145,8 @@ https://57.129.90.145:10150/vnc.html?password=e0GGP4xeMUL5ga&autoconnect=true&re
 - IP: server's public or Tailscale IP
 - Port + password: from start.sh output
 
-**macOS** (via websockify → Screen Sharing):
-```
-https://100.88.241.97:6080/vnc.html?autoconnect=true&resize=scale
-```
-- No password in URL (macOS uses system account auth)
-- Requires websockify setup (see macOS noVNC setup below)
-
-### macOS noVNC setup:
-
-```bash
-pip3 install --break-system-packages websockify
-git clone --depth 1 https://github.com/novnc/noVNC.git /tmp/novnc
-mkdir -p /tmp/vnc-ssl
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout /tmp/vnc-ssl/key.pem -out /tmp/vnc-ssl/cert.pem \
-  -subj "/CN=anemone-mac" 2>/dev/null
-cat /tmp/vnc-ssl/key.pem /tmp/vnc-ssl/cert.pem > /tmp/vnc-ssl/combined.pem
-websockify --web=/tmp/novnc --cert=/tmp/vnc-ssl/combined.pem 6080 localhost:5900 &
-```
+**macOS:** VNC takeover is NOT available. The user must access the Mac directly
+(physical access, macOS Screen Sharing, or their own remote desktop solution).
 
 ### Takeover flow:
 
