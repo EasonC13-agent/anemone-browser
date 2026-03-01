@@ -54,7 +54,7 @@ google-chrome-stable \
   --disable-blink-features=AutomationControlled \
   --user-data-dir=/root/.chrome-profile \
   --remote-debugging-port=$CDP_PORT \
-  --remote-debugging-address=0.0.0.0 \
+  --remote-debugging-address=127.0.0.1 \
   --display=:$DISPLAY_NUM \
   --window-size=$(echo $RESOLUTION | cut -dx -f1),$(echo $RESOLUTION | cut -dx -f2) \
   --start-maximized --kiosk \
