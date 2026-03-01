@@ -49,8 +49,11 @@ sleep 1
 mkdir -p /etc/opt/chrome/policies/managed
 cat > /etc/opt/chrome/policies/managed/security.json << 'POLICY'
 {
-  "URLBlocklist": ["file://*"],
-  "DeveloperToolsAvailability": 0
+  "URLBlocklist": ["file://*", "chrome-extension://*", "javascript://*", "data:text/html*"],
+  "DeveloperToolsAvailability": 0,
+  "ExtensionInstallBlocklist": ["*"],
+  "BrowserAddPersonEnabled": false,
+  "DownloadRestrictions": 3
 }
 POLICY
 
