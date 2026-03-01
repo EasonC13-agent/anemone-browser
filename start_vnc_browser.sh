@@ -45,6 +45,15 @@ export DISPLAY=:$DISPLAY_NUM
 fluxbox &>/dev/null &
 sleep 1
 
+# === Chrome policy: block file:// access ===
+mkdir -p /etc/opt/chrome/policies/managed
+cat > /etc/opt/chrome/policies/managed/security.json << 'POLICY'
+{
+  "URLBlocklist": ["file://*"],
+  "DeveloperToolsAvailability": 0
+}
+POLICY
+
 # === Chrome headful with anti-detection ===
 echo "Starting Chrome (CDP port $CDP_PORT)..."
 google-chrome-stable \
