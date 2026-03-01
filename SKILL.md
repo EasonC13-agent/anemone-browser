@@ -1,5 +1,5 @@
 ---
-name: anemone
+name: anemone-browser
 description: >
   Managed headful Chrome browser for OpenClaw agents with anti-bot-detection,
   human-in-the-loop VNC takeover, and multi-session window isolation.
@@ -13,7 +13,7 @@ description: >
   "browser setup", "Chrome for agent".
 ---
 
-# Anemone — Managed Browser for OpenClaw Agents
+# Anemone Browser — Managed Browser for OpenClaw Agents
 
 Headful Chrome with anti-detection, VNC takeover, and multi-session isolation.
 Works on Mac, Linux, Docker — anywhere OpenClaw runs.
