@@ -1,160 +1,52 @@
+---
+name: anemone
+description: >
+  Managed headful Chrome browser for OpenClaw agents with anti-bot-detection,
+  human-in-the-loop VNC takeover, and multi-session window isolation.
+  Use when: (1) setting up browser automation on a new machine (Mac/Linux/Docker),
+  (2) browser gets blocked by Google, Cloudflare, or CAPTCHAs,
+  (3) need human to intervene via VNC (login, CAPTCHA solving),
+  (4) multiple agent sessions need independent browser windows without conflicts,
+  (5) configuring OpenClaw's browser tool for headful Chrome.
+  Triggers: "set up browser", "browser blocked", "CAPTCHA", "VNC",
+  "Google Scholar blocked", "headless detected", "anti-detection",
+  "browser setup", "Chrome for agent".
+---
+
 # Anemone — Managed Browser for OpenClaw Agents
 
-A managed Chrome environment that works anywhere: Mac, Docker, Ubuntu, VPS.
-Anti-detection, human-in-the-loop VNC, and secure by default.
+Headful Chrome with anti-detection, VNC takeover, and multi-session isolation.
+Works on Mac, Linux, Docker — anywhere OpenClaw runs.
 
-## When to Use This Skill
+## Setup
 
-- Setting up a browser environment for OpenClaw on a new machine
-- Browser gets blocked by Google, Cloudflare, or CAPTCHA walls
-- Need human intervention (login, CAPTCHA solving) via VNC
-- Need a secure, isolated browser for AI agent automation
-- Configuring OpenClaw's `browser` tool to work in Docker/VPS
-
-## Platform Setup
-
-### macOS (local machine)
+### macOS
 
 ```bash
-bash setup-mac.sh
+bash scripts/setup-mac.sh
 ```
 
-This configures OpenClaw to use a managed `openclaw` browser profile.
-After setup:
-
+Detects Chrome, configures OpenClaw browser profile. After setup:
 ```bash
 openclaw browser start
-openclaw browser open https://www.google.com
+# Agent's browser tool works automatically
 ```
 
-**macOS noVNC setup** (for remote takeover):
-
-macOS has built-in Screen Sharing (VNC on port 5900). To expose it via noVNC:
+### Linux / Docker
 
 ```bash
-# Install websockify
-pip3 install --break-system-packages websockify
+# Install deps (once)
+bash scripts/setup.sh
 
-# Download noVNC
-git clone --depth 1 https://github.com/novnc/noVNC.git /tmp/novnc
-
-# Generate SSL cert
-mkdir -p /tmp/vnc-ssl
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout /tmp/vnc-ssl/key.pem -out /tmp/vnc-ssl/cert.pem \
-  -subj "/CN=anemone-mac" 2>/dev/null
-cat /tmp/vnc-ssl/key.pem /tmp/vnc-ssl/cert.pem > /tmp/vnc-ssl/combined.pem
-
-# Start websockify (bridges noVNC websocket to macOS VNC)
-websockify --web=/tmp/novnc --cert=/tmp/vnc-ssl/combined.pem 6080 localhost:5900 &
+# Start browser + VNC environment
+bash scripts/start.sh [password] [novnc_port] [cdp_port] [resolution]
 ```
 
-Note: macOS Screen Sharing uses system account auth, so the user will need to enter their Mac username/password when connecting (password cannot be embedded in URL).
+`start.sh` outputs the noVNC URL, password, and CDP port. Safe to re-run.
 
-### Docker / VPS / Remote Server (Linux)
+## OpenClaw Config
 
-```bash
-# 1. Copy files into container
-docker cp setup.sh <container>:/tmp/anemone-setup.sh
-docker cp start.sh <container>:/tmp/anemone-start.sh
-
-# 2. Install dependencies (once)
-docker exec <container> bash /tmp/anemone-setup.sh
-
-# 3. Start the browser environment
-docker exec <container> bash /root/start.sh [password] [novnc_port] [cdp_port] [resolution]
-```
-
-### Ubuntu (bare metal)
-
-```bash
-bash setup.sh   # Install Chrome + VNC deps
-bash start.sh   # Start everything
-```
-
-## After Setup: Agent Usage
-
-Once set up, the agent uses the standard `browser` tool. No special commands needed.
-
-```
-# Agent just uses browser tool normally:
-browser action=open targetUrl="https://scholar.google.com" profile=openclaw
-browser action=snapshot profile=openclaw
-```
-
-## Multi-Session Browser Isolation (CRITICAL)
-
-Multiple agent sessions can share one Chrome instance without conflicting.
-Each session gets its own **window** (not just tab). Same profile = shared cookies/logins.
-
-### How it works:
-
-1. **Each session opens its own window:**
-   ```
-   browser action=open targetUrl="https://example.com" profile=openclaw
-   # This returns a targetId — SAVE IT, this is your window/tab
-   ```
-
-2. **Always pass your targetId in subsequent calls:**
-   ```
-   browser action=snapshot profile=openclaw targetId="<your-targetId>"
-   browser action=act profile=openclaw targetId="<your-targetId>" ...
-   browser action=navigate profile=openclaw targetId="<your-targetId>" targetUrl="..."
-   ```
-
-3. **Never operate without targetId** — without it you might land on another session's tab.
-
-### Rules for agents:
-- On session start: open a new tab/window, save the `targetId`
-- All browser calls: always include `targetId`
-- On session end: close your tab (`browser action=close targetId="<your-targetId>"`)
-- Never call `browser action=tabs` and pick someone else's tab
-- If your tab crashes, open a new one (don't reuse others)
-
-### Opening new windows via CDP (for advanced use):
-
-If you need to explicitly open a **new window** (not just a tab), use CDP:
-
-```python
-# Via CDP websocket (Target.createTarget with newWindow: true)
-import json, asyncio, websockets, urllib.request
-
-async def open_new_window(cdp_port, url):
-    version = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{cdp_port}/json/version").read())
-    ws_url = version["webSocketDebuggerUrl"]
-    async with websockets.connect(ws_url) as ws:
-        await ws.send(json.dumps({
-            "id": 1,
-            "method": "Target.createTarget",
-            "params": {"url": url, "newWindow": True}
-        }))
-        resp = json.loads(await ws.recv())
-        target_id = resp["result"]["targetId"]
-        print(f"New window: {url} -> targetId={target_id}")
-        return target_id
-```
-
-Or via OpenClaw's browser tool (opens as a new tab in the same window):
-```
-browser action=open targetUrl="https://example.com" profile=openclaw
-# Returns targetId — use this for all subsequent calls
-```
-
-### Architecture:
-```
-Chrome (one instance, one profile, shared cookies)
-├── Window/Tab targetId=AAA → Session A controls this
-├── Window/Tab targetId=BBB → Session B controls this
-└── Window/Tab targetId=CCC → Session C controls this
-```
-
-All sessions share cookies and login state. Each session only operates on its own targetId.
-This works identically on Mac, Linux, and Docker (with or without Xvfb).
-
-### Important: Do NOT use kiosk mode
-Chrome's `--kiosk` flag hides the tab bar and address bar, making multi-window unusable via VNC. The `start.sh` script uses `--start-maximized` instead, so all windows and tabs are visible when a human connects via noVNC.
-
-### OpenClaw Config (what setup scripts configure)
+Setup scripts configure this automatically. Manual reference:
 
 **macOS:**
 ```json
@@ -168,7 +60,7 @@ Chrome's `--kiosk` flag hides the tab bar and address bar, making multi-window u
 }
 ```
 
-**Docker/Linux** (add to container's OpenClaw config):
+**Linux:**
 ```json
 {
   "browser": {
@@ -180,106 +72,120 @@ Chrome's `--kiosk` flag hides the tab bar and address bar, making multi-window u
 }
 ```
 
-## Human-in-the-Loop: VNC Takeover (CRITICAL)
+## Multi-Session Window Isolation
 
-When the agent hits a CAPTCHA, login wall, or any situation requiring human intervention, **always send the user a noVNC link in this exact format:**
+Multiple sessions share one Chrome (same cookies/logins) but each gets its own window.
+
+### Rules (MUST follow):
+
+1. **On session start — open your own tab, save the targetId:**
+   ```
+   browser action=open targetUrl="https://example.com" profile=openclaw
+   # Returns targetId — THIS IS YOURS, save it
+   ```
+
+2. **ALL subsequent calls — always include your targetId:**
+   ```
+   browser action=snapshot profile=openclaw targetId="<your-targetId>"
+   browser action=navigate profile=openclaw targetId="<your-targetId>" targetUrl="..."
+   browser action=act profile=openclaw targetId="<your-targetId>" ...
+   ```
+
+3. **On session end — close your tab:**
+   ```
+   browser action=close targetId="<your-targetId>"
+   ```
+
+4. **NEVER operate without targetId** — you'll land on another session's tab.
+
+5. **NEVER pick another session's tab** from `browser action=tabs`.
+
+### Opening a new window (not tab) via CDP:
+
+```python
+import json, asyncio, websockets, urllib.request
+
+async def open_new_window(cdp_port, url):
+    version = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{cdp_port}/json/version").read())
+    async with websockets.connect(version["webSocketDebuggerUrl"]) as ws:
+        await ws.send(json.dumps({
+            "id": 1, "method": "Target.createTarget",
+            "params": {"url": url, "newWindow": True}
+        }))
+        resp = json.loads(await ws.recv())
+        return resp["result"]["targetId"]
+```
+
+### Architecture:
+```
+Chrome (one instance, one profile, shared cookies)
+├── Window targetId=AAA → Session A
+├── Window targetId=BBB → Session B
+└── Window targetId=CCC → Session C
+```
+
+## VNC Takeover (CRITICAL)
+
+When hitting a CAPTCHA, login wall, or any blocker, **send the user a noVNC link:**
 
 ```
 https://<IP>:<NOVNC_PORT>/vnc.html?password=<PASSWORD>&autoconnect=true&resize=scale
 ```
 
-### How to construct the link per platform:
+### Constructing the link:
 
-**Docker/Linux (start.sh output):**
-- IP: the server's public IP or Tailscale IP
-- Port: the noVNC port (default 6080, or custom from start.sh args)
-- Password: the random 14-char password generated by start.sh (or custom)
-- Example: `https://57.129.90.145:10150/vnc.html?password=e0GGP4xeMUL5ga&autoconnect=true&resize=scale`
-
-**macOS (websockify + Screen Sharing):**
-- IP: the Mac's Tailscale IP (or LAN IP)
-- Port: websockify port (default 6080)
-- Password: NOT embeddable (macOS uses system account auth, user enters credentials in VNC)
-- Example: `https://100.88.241.97:6080/vnc.html?autoconnect=true&resize=scale`
-
-### When to send the VNC link:
-
-1. **CAPTCHA detected** — send link, tell user to solve it, wait for them to confirm
-2. **Login required** — send link, user logs in manually
-3. **Verification/2FA** — send link for phone/email verification
-4. **Visual confirmation needed** — send link so user can see what the browser shows
-5. **Any blocking interaction** — if the agent can't proceed, give the user control
-
-### VNC takeover flow:
-
+**Linux/Docker** (from start.sh output):
 ```
-1. Agent detects blocker (CAPTCHA, login, etc.)
-2. Agent sends message to user with noVNC link:
-   "I hit a CAPTCHA. Please open this link and solve it:
-    https://<IP>:<PORT>/vnc.html?password=<PASS>&autoconnect=true&resize=scale
-    Let me know when you're done."
-3. User opens link in browser → sees the Chrome session → solves the problem
-4. User tells agent "done"
-5. Agent continues browsing
+https://57.129.90.145:10150/vnc.html?password=e0GGP4xeMUL5ga&autoconnect=true&resize=scale
+```
+- IP: server's public or Tailscale IP
+- Port + password: from start.sh output
+
+**macOS** (via websockify → Screen Sharing):
+```
+https://100.88.241.97:6080/vnc.html?autoconnect=true&resize=scale
+```
+- No password in URL (macOS uses system account auth)
+- Requires websockify setup (see macOS noVNC setup below)
+
+### macOS noVNC setup:
+
+```bash
+pip3 install --break-system-packages websockify
+git clone --depth 1 https://github.com/novnc/noVNC.git /tmp/novnc
+mkdir -p /tmp/vnc-ssl
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout /tmp/vnc-ssl/key.pem -out /tmp/vnc-ssl/cert.pem \
+  -subj "/CN=anemone-mac" 2>/dev/null
+cat /tmp/vnc-ssl/key.pem /tmp/vnc-ssl/cert.pem > /tmp/vnc-ssl/combined.pem
+websockify --web=/tmp/novnc --cert=/tmp/vnc-ssl/combined.pem 6080 localhost:5900 &
 ```
 
-### Important notes:
-- Self-signed SSL: user's browser will show a security warning, they need to click "Advanced" → "Proceed"
-- The VNC link gives full visual access to the browser session
-- On Docker/Linux: password is in the URL, one-click access
-- On macOS: system login required (more secure, but extra step)
+### Takeover flow:
+
+1. Agent detects blocker (CAPTCHA, login, 2FA)
+2. Agent sends noVNC link to user
+3. User opens link → sees Chrome → solves the problem
+4. User confirms done → agent continues
 
 ## Anti-Detection
 
-Anemone bypasses common bot detection:
-
-- **Headful Chrome** (not headless) — no `HeadlessChrome` in navigator
-- **`--disable-blink-features=AutomationControlled`** — removes `navigator.webdriver=true`
-- **UA override via CDP** — clean user agent string
-
-If Google or Scholar still blocks, override UA via CDP:
-```python
-# Via CDP websocket
-{"method": "Network.setUserAgentOverride", "params": {
-  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-}}
-```
+- **Headful Chrome** — no `HeadlessChrome` in UA
+- **`--disable-blink-features=AutomationControlled`** — no `navigator.webdriver=true`
+- **UA override via CDP** if needed:
+  ```json
+  {"method": "Network.setUserAgentOverride", "params": {
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36"
+  }}
+  ```
 
 ## Security
 
-| Layer | Protection |
-|-------|-----------|
-| Network | SSL/TLS encryption (self-signed cert) |
-| Auth | Random 14-char password (Docker/Linux) or system auth (macOS) |
-| CDP | Localhost only (not exposed to network) |
-| Chrome Policy | `file://` blocked, extensions blocked, DevTools disabled |
-| Isolation | Docker container / separate browser profile |
+- SSL/TLS on noVNC (self-signed cert)
+- Random 14-char password (Linux) or system auth (macOS)
+- CDP: localhost only, never exposed to network
+- Chrome Policy: `file://`, `javascript:`, `data:text/html` blocked; extensions blocked; DevTools disabled
 
-## Files
+## Important: No Kiosk Mode
 
-| File | Platform | Purpose |
-|------|----------|---------|
-| `setup-mac.sh` | macOS | Configure OpenClaw browser settings |
-| `setup.sh` | Linux/Docker | Install Chrome + Xvfb + VNC + noVNC |
-| `start.sh` | Linux/Docker | Start browser environment (safe to re-run) |
-| `test.py` | Linux/Docker | Verify Google/Scholar access |
-
-## Troubleshooting
-
-**Mac: "Browser disabled"**
-→ Run `openclaw browser start` or check `openclaw browser status`
-
-**Docker: Chrome crashes**
-→ Make sure `--no-sandbox` is enabled and `/dev/shm` is large enough:
-```bash
-docker run --shm-size=2g ...
-```
-
-**Google still blocks**
-→ Check UA string. Run `test.py` to verify. Datacenter IPs may need additional measures.
-
-**VNC won't connect**
-→ Check port mapping (Docker: port must be exposed). Check SSL cert exists. Check websockify is running.
-
-**noVNC shows black screen**
-→ Xvfb or Chrome may have crashed. Re-run `start.sh`.
+Do NOT use Chrome's `--kiosk` flag. It hides the tab bar and address bar, making multi-window unusable via VNC. Use `--start-maximized` instead.
