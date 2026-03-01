@@ -82,6 +82,45 @@ browser action=open targetUrl="https://scholar.google.com" profile=openclaw
 browser action=snapshot profile=openclaw
 ```
 
+## Multi-Session Browser Isolation (CRITICAL)
+
+Multiple agent sessions can share one Chrome instance without conflicting.
+Each session gets its own **window** (not just tab). Same profile = shared cookies/logins.
+
+### How it works:
+
+1. **Each session opens its own window:**
+   ```
+   browser action=open targetUrl="https://example.com" profile=openclaw
+   # This returns a targetId — SAVE IT, this is your window/tab
+   ```
+
+2. **Always pass your targetId in subsequent calls:**
+   ```
+   browser action=snapshot profile=openclaw targetId="<your-targetId>"
+   browser action=act profile=openclaw targetId="<your-targetId>" ...
+   browser action=navigate profile=openclaw targetId="<your-targetId>" targetUrl="..."
+   ```
+
+3. **Never operate without targetId** — without it you might land on another session's tab.
+
+### Rules for agents:
+- On session start: open a new tab/window, save the `targetId`
+- All browser calls: always include `targetId`
+- On session end: close your tab (`browser action=close targetId="<your-targetId>"`)
+- Never call `browser action=tabs` and pick someone else's tab
+- If your tab crashes, open a new one (don't reuse others)
+
+### Architecture:
+```
+Chrome (one instance, one profile, shared cookies)
+├── Window/Tab targetId=AAA → Session A controls this
+├── Window/Tab targetId=BBB → Session B controls this
+└── Window/Tab targetId=CCC → Session C controls this
+```
+
+This works identically on Mac, Linux, and Docker (with or without Xvfb).
+
 ### OpenClaw Config (what setup scripts configure)
 
 **macOS:**
