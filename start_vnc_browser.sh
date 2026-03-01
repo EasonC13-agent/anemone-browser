@@ -11,6 +11,7 @@ VNC_PASS="${1:-$(generate_password)}"
 NOVNC_PORT="${2:-6080}"
 CDP_PORT="${3:-9222}"
 VNC_PORT=5900
+RESOLUTION="${4:-1920x1080x24}"
 DISPLAY_NUM=99
 
 echo "=== Stopping existing processes ==="
@@ -36,7 +37,7 @@ x11vnc -storepasswd "$VNC_PASS" /root/.vnc/passwd 2>/dev/null
 
 # === Xvfb (virtual display) ===
 echo "Starting Xvfb..."
-Xvfb :$DISPLAY_NUM -screen 0 1280x800x24 &
+Xvfb :$DISPLAY_NUM -screen 0 $RESOLUTION &
 sleep 1
 export DISPLAY=:$DISPLAY_NUM
 
@@ -55,7 +56,8 @@ google-chrome-stable \
   --remote-debugging-port=$CDP_PORT \
   --remote-debugging-address=0.0.0.0 \
   --display=:$DISPLAY_NUM \
-  --window-size=1280,800 \
+  --window-size=$(echo $RESOLUTION | cut -dx -f1),$(echo $RESOLUTION | cut -dx -f2) \
+  --start-maximized \
   &>/dev/null &
 sleep 3
 
@@ -85,7 +87,7 @@ if [ $FAIL -eq 0 ]; then
   echo "=========================================="
   echo "  VNC Browser Environment Ready!"
   echo "=========================================="
-  echo "  noVNC:    https://<YOUR_IP>:${NOVNC_PORT}/vnc.html?password=${VNC_PASS}&autoconnect=true"
+  echo "  noVNC:    https://<YOUR_IP>:${NOVNC_PORT}/vnc.html?password=${VNC_PASS}&autoconnect=true&resize=scale"
   echo "  Password: ${VNC_PASS}"
   echo "  CDP:      http://127.0.0.1:${CDP_PORT}/json/version"
   echo "=========================================="
