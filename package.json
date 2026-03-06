@@ -1,9 +1,9 @@
 {
   "name": "anemone-browser",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Managed headful Chrome with anti-detection, VNC takeover, and auto-recovery for OpenClaw agents",
   "bin": {
-    "anemone": "./bin/anemone.mjs"
+    "anemone": "bin/anemone.mjs"
   },
   "keywords": [
     "browser",
@@ -19,7 +19,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/EasonC13-agent/anemone-browser.git"
+    "url": "git+https://github.com/EasonC13-agent/anemone-browser.git"
   },
   "engines": {
     "node": ">=18"

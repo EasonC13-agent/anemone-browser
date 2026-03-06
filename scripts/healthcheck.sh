@@ -75,7 +75,7 @@ if ! pgrep -f "x11vnc.*:${DISPLAY_NUM}" > /dev/null 2>&1 || ps aux | grep x11vnc
   log "FIXING: x11vnc not running or defunct"
   pkill -9 -f x11vnc 2>/dev/null
   sleep 1
-  x11vnc -display ":${DISPLAY_NUM}" -forever -shared \
+  x11vnc -display ":${DISPLAY_NUM}" -forever -shared -noshm \
     -rfbauth /root/.vnc/passwd \
     -rfbport "$VNC_PORT" \
     -bg -o /tmp/x11vnc.log

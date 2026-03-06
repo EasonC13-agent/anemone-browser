@@ -15,12 +15,15 @@ RESOLUTION="${4:-1920x1080x24}"
 DISPLAY_NUM=99
 
 echo "=== Stopping existing processes ==="
-pkill -9 -f Xvfb 2>/dev/null
+pkill -9 -f "Xvfb :$DISPLAY_NUM" 2>/dev/null
 pkill -9 -f x11vnc 2>/dev/null
 pkill -9 -f websockify 2>/dev/null
 pkill -9 -f fluxbox 2>/dev/null
-pkill -9 -f "chrome" 2>/dev/null
+pkill -9 -f "chrome.*remote-debugging" 2>/dev/null
 sleep 2
+
+# Clean stale lock files
+rm -f "/tmp/.X${DISPLAY_NUM}-lock" "/tmp/.X11-unix/X${DISPLAY_NUM}" 2>/dev/null
 
 # === SSL cert (self-signed, reuse if exists) ===
 mkdir -p /root/.vnc
@@ -74,7 +77,7 @@ sleep 3
 
 # === x11vnc (localhost only, password protected, shared) ===
 echo "Starting x11vnc..."
-x11vnc -display :$DISPLAY_NUM -forever -shared \
+x11vnc -display :$DISPLAY_NUM -forever -shared -noshm \
   -rfbauth /root/.vnc/passwd \
   -rfbport $VNC_PORT \
   -bg -o /tmp/x11vnc.log
